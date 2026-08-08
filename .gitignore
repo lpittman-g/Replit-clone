@@ -39,10 +39,3 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-<<<<<<< HEAD
-
-# Next.js 16 local agent helper files
-AGENTS.md
-CLAUDE.md
-=======
->>>>>>> origin/main

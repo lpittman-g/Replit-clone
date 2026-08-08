@@ -1,5 +1,9 @@
 {
+<<<<<<< HEAD
+  "name": "replit-clone-app",
+=======
   "name": "replit-clone",
+>>>>>>> origin/main
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -12,12 +16,19 @@
     "@monaco-editor/react": "^4.7.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
+<<<<<<< HEAD
+    "next": "16.3.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-resizable-panels": "^4.12.2"
+=======
     "lucide-react": "^1.30.0",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-resizable-panels": "^4.12.2",
     "zustand": "^5.0.14"
+>>>>>>> origin/main
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -28,5 +39,11 @@
     "eslint-config-next": "16.3.0",
     "tailwindcss": "^4",
     "typescript": "^5"
+<<<<<<< HEAD
+  },
+  "overrides": {
+    "dompurify": "3.4.13"
+=======
+>>>>>>> origin/main
   }
 }

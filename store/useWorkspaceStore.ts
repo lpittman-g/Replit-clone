@@ -360,6 +360,13 @@ export function selectFileById(fileTree: FileNode[], id: string) {
   return findNode(fileTree, id);
 }
 
+export function selectFileByName(
+  fileTree: FileNode[],
+  name: string,
+): FileNode | null {
+  return findFileByName(fileTree, name);
+}
+
 function findFileByName(nodes: FileNode[], name: string): FileNode | null {
   for (const node of nodes) {
     if (node.type === "file" && node.name === name) return node;

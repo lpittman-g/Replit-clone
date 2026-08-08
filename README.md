@@ -15,10 +15,22 @@ A Replit-inspired IDE workspace built with Next.js (App Router), TypeScript, Tai
 
 ```bash
 npm install
+cp .env.example .env
+# set DATABASE_URL, AUTH_SECRET, and optional OAuth keys
+npm run db:setup
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+### Auth & persistence
+
+- Auth.js with optional GitHub/Google OAuth + demo credentials login
+- Prisma + PostgreSQL models: `User`, `Project`, `File` (+ Auth.js tables)
+- `/login` → `/dashboard` lists saved Repls
+- `/workspace/[projectId]` loads a Repl and autosaves file tree edits
+
+Demo account (after seed): `demo@replit-clone.local` / `demo1234`
 
 ### Run button
 

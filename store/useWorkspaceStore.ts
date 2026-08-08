@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 export type ToolId =
   | "files"
@@ -9,6 +10,8 @@ export type ToolId =
   | "settings";
 
 export type PaneId = "terminal" | "console" | "preview" | "agent";
+export type BottomPaneId = "terminal" | "console";
+export type RightPaneId = "preview" | "agent";
 
 export type FileNode = {
   id: string;
@@ -59,6 +62,9 @@ type WorkspaceState = {
   activeFileId: string | null;
   openPanes: PaneId[];
   activePane: PaneId;
+  activeBottomPane: BottomPaneId;
+  activeRightPane: RightPaneId;
+  bottomPanelOpen: boolean;
   secrets: SecretEntry[];
   packages: string[];
   consoleLogs: ConsoleLog[];
@@ -70,6 +76,7 @@ type WorkspaceState = {
   ramUsage: number;
   previewUrl: string;
   previewKey: number;
+  hydrated: boolean;
 
   setActiveTool: (tool: ToolId) => void;
   toggleSidebar: () => void;
@@ -78,11 +85,16 @@ type WorkspaceState = {
   closeTab: (fileId: string) => void;
   setActiveFile: (fileId: string) => void;
   updateFileContent: (fileId: string, content: string) => void;
+  saveActiveFile: () => void;
   createFile: (parentId: string | null, name: string) => void;
   createFolder: (parentId: string | null, name: string) => void;
   deleteNode: (nodeId: string) => void;
   setActivePane: (pane: PaneId) => void;
+  setActiveBottomPane: (pane: BottomPaneId) => void;
+  setActiveRightPane: (pane: RightPaneId) => void;
+  toggleBottomPanel: () => void;
   togglePane: (pane: PaneId) => void;
+  setHydrated: (hydrated: boolean) => void;
   addSecret: (key: string, value: string) => void;
   removeSecret: (id: string) => void;
   addPackage: (name: string) => void;
@@ -341,7 +353,9 @@ export function selectFileById(fileTree: FileNode[], id: string) {
   return findNode(fileTree, id);
 }
 
-export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
+export const useWorkspaceStore = create<WorkspaceState>()(
+  persist(
+    (set, get) => ({
   projectName: "replit-clone",
   branch: "main",
   fileTree: initialFileTree,
@@ -351,6 +365,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   activeFileId: "file-index-html",
   openPanes: ["terminal", "console", "preview", "agent"],
   activePane: "preview",
+  activeBottomPane: "terminal",
+  activeRightPane: "preview",
+  bottomPanelOpen: true,
+  hydrated: false,
   secrets: [
     {
       id: "secret-1",
@@ -433,6 +451,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       ),
     })),
 
+  saveActiveFile: () =>
+    set((state) => {
+      if (!state.activeFileId) return state;
+      return {
+        openTabs: state.openTabs.map((tab) =>
+          tab.id === state.activeFileId ? { ...tab, dirty: false } : tab,
+        ),
+      };
+    }),
+
   createFile: (parentId, name) => {
     const id = nextId("file");
     const child: FileNode = { id, name, type: "file", content: "" };
@@ -479,12 +507,41 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     }),
 
   setActivePane: (pane) =>
-    set((state) => ({
+    set((state) => {
+      if (pane === "terminal" || pane === "console") {
+        return {
+          activePane: pane,
+          activeBottomPane: pane,
+          bottomPanelOpen: true,
+          openPanes: state.openPanes.includes(pane)
+            ? state.openPanes
+            : [...state.openPanes, pane],
+        };
+      }
+      return {
+        activePane: pane,
+        activeRightPane: pane,
+        openPanes: state.openPanes.includes(pane)
+          ? state.openPanes
+          : [...state.openPanes, pane],
+      };
+    }),
+
+  setActiveBottomPane: (pane) =>
+    set({
+      activeBottomPane: pane,
       activePane: pane,
-      openPanes: state.openPanes.includes(pane)
-        ? state.openPanes
-        : [...state.openPanes, pane],
-    })),
+      bottomPanelOpen: true,
+    }),
+
+  setActiveRightPane: (pane) =>
+    set({
+      activeRightPane: pane,
+      activePane: pane,
+    }),
+
+  toggleBottomPanel: () =>
+    set((state) => ({ bottomPanelOpen: !state.bottomPanelOpen })),
 
   togglePane: (pane) =>
     set((state) => {
@@ -501,6 +558,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
             : pane;
       return { openPanes, activePane };
     }),
+
+  setHydrated: (hydrated) => set({ hydrated }),
 
   addSecret: (key, value) =>
     set((state) => ({
@@ -573,6 +632,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     set({
       isRunning: true,
       activePane: "console",
+      activeBottomPane: "console",
+      bottomPanelOpen: true,
       cpuUsage: 48,
       ramUsage: 61,
     });
@@ -598,4 +659,26 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   refreshPreview: () =>
     set((state) => ({ previewKey: state.previewKey + 1 })),
-}));
+}),
+    {
+      name: "replit-clone-workspace",
+      partialize: (state) => ({
+        fileTree: state.fileTree,
+        openTabs: state.openTabs,
+        activeFileId: state.activeFileId,
+        activeTool: state.activeTool,
+        sidebarOpen: state.sidebarOpen,
+        activeBottomPane: state.activeBottomPane,
+        activeRightPane: state.activeRightPane,
+        bottomPanelOpen: state.bottomPanelOpen,
+        secrets: state.secrets,
+        packages: state.packages,
+        settings: state.settings,
+        agentMessages: state.agentMessages,
+      }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHydrated(true);
+      },
+    },
+  ),
+);

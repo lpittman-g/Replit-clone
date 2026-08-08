@@ -22,6 +22,9 @@ export default function StatusBar() {
           {settings.indentSize}
         </span>
         <span>UTF-8</span>
+        <span className="hidden text-[#4b5563] sm:inline">
+          ⌘↵ Run · ⌘S Save · ⌘B Sidebar · ⌘J Shell
+        </span>
       </div>
 
       <div className="flex items-center gap-3">

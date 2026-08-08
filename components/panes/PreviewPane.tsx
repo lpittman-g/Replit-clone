@@ -4,6 +4,7 @@ import { RefreshCw } from "lucide-react";
 import { useMemo } from "react";
 import {
   selectFileById,
+  selectFileByName,
   useWorkspaceStore,
 } from "@/store/useWorkspaceStore";
 
@@ -12,9 +13,18 @@ export default function PreviewPane() {
   const previewKey = useWorkspaceStore((s) => s.previewKey);
   const refreshPreview = useWorkspaceStore((s) => s.refreshPreview);
 
-  const html = selectFileById(fileTree, "file-index-html")?.content ?? "";
-  const css = selectFileById(fileTree, "file-styles-css")?.content ?? "";
-  const js = selectFileById(fileTree, "file-main-js")?.content ?? "";
+  const html =
+    selectFileById(fileTree, "file-index-html")?.content ??
+    selectFileByName(fileTree, "index.html")?.content ??
+    "";
+  const css =
+    selectFileById(fileTree, "file-styles-css")?.content ??
+    selectFileByName(fileTree, "styles.css")?.content ??
+    "";
+  const js =
+    selectFileById(fileTree, "file-main-js")?.content ??
+    selectFileByName(fileTree, "main.js")?.content ??
+    "";
 
   const srcDoc = useMemo(() => {
     const withCss = html.includes("</head>")

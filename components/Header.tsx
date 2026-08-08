@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useSession } from "next-auth/react";
 import {
   Menu,
   Play,
@@ -8,10 +10,12 @@ import {
   Lock,
   UserPlus,
   User,
+  LayoutDashboard,
 } from "lucide-react";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 
 export default function Header() {
+  const { data: session } = useSession();
   const projectName = useWorkspaceStore((s) => s.projectName);
   const isRunning = useWorkspaceStore((s) => s.isRunning);
   const toggleSidebar = useWorkspaceStore((s) => s.toggleSidebar);
@@ -59,6 +63,13 @@ export default function Header() {
       </div>
 
       <div className="flex items-center gap-1.5">
+        <Link
+          href={session?.user ? "/dashboard" : "/login"}
+          className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-[#9aa4b2] transition hover:bg-[#1a2030] hover:text-white"
+        >
+          <LayoutDashboard className="h-3.5 w-3.5" />
+          {session?.user ? "Dashboard" : "Sign in"}
+        </Link>
         <button
           type="button"
           className="inline-flex items-center gap-1.5 rounded-md border border-[#2a3344] bg-[#151a23] px-2.5 py-1.5 text-xs font-medium text-[#d7dce5] transition hover:border-[#3a465c] hover:bg-[#1a2030]"

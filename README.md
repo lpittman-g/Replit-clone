@@ -7,8 +7,9 @@ A Replit-inspired IDE workspace built with Next.js (App Router), TypeScript, Tai
 - Header with Run/Deploy/Secrets/Invite controls
 - Left tool rail: Files, Packages, Secrets, Git, Database, Settings
 - Tabbed Monaco editor with dirty indicators
-- Right tool panes: Terminal, Console, Web Preview, AI Agent
+- Bottom Shell/Console + right Webview/Agent panes
 - Status bar with branch, indentation, and mock CPU/RAM gauges
+- Backend execution engine at `POST /api/execute` (Node/Python child processes with timeout + output limits), streamed into Xterm
 
 ## Getting started
 
@@ -18,3 +19,10 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+### Run button
+
+- Open a `.js` or `.py` file and press **Run** (or `⌘/Ctrl+Enter`) to execute it via `/api/execute`.
+- Output streams into the Shell (Xterm) and Console panes in real time.
+- Open `.html` / `.css` and press **Run** to refresh the Webview preview.
+- Press **Stop** or `Ctrl+C` in the Shell to abort a running process.

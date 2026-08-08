@@ -26,6 +26,7 @@ export default function TerminalPane() {
         foreground: "#d7dce5",
         cursor: "#7dd3a7",
         selectionBackground: "#1C4B39",
+        red: "#f87171",
       },
       convertEol: true,
     });
@@ -38,13 +39,25 @@ export default function TerminalPane() {
     term.onData((data) => {
       if (data === "\r") {
         const trimmed = command.trim();
-        if (trimmed) {
-          appendTerminalOutput(`$ ${trimmed}`);
-          appendTerminalOutput(`sh: mock shell — ran \`${trimmed}\``);
-        } else {
-          appendTerminalOutput("$");
+        term.write("\r\n");
+        if (trimmed === "run") {
+          useWorkspaceStore.getState().runProject();
+        } else if (trimmed === "clear") {
+          term.clear();
+          writtenCount.current =
+            useWorkspaceStore.getState().terminalOutput.length;
+        } else if (trimmed) {
+          appendTerminalOutput(
+            `sh: unknown command \`${trimmed}\` — try \`run\` or use the Run button`,
+          );
         }
         command = "";
+        return;
+      }
+      if (data === "\u0003") {
+        useWorkspaceStore.getState().stopProject();
+        command = "";
+        term.write("^C\r\n");
         return;
       }
       if (data === "\u007f") {
@@ -52,6 +65,9 @@ export default function TerminalPane() {
           command = command.slice(0, -1);
           term.write("\b \b");
         }
+        return;
+      }
+      if (data.length === 1 && data.charCodeAt(0) < 32) {
         return;
       }
       command += data;

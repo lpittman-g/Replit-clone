@@ -1,5 +1,9 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import {
+  languageFromFilename,
+  streamExecute,
+} from "@/lib/execution/streamClient";
 
 export type ToolId =
   | "files"
@@ -102,12 +106,15 @@ type WorkspaceState = {
   appendConsoleLog: (level: ConsoleLog["level"], message: string) => void;
   clearConsole: () => void;
   appendTerminalOutput: (line: string) => void;
+  clearTerminal: () => void;
   sendAgentMessage: (content: string) => void;
   updateSettings: (partial: Partial<WorkspaceSettings>) => void;
   runProject: () => void;
   stopProject: () => void;
   refreshPreview: () => void;
 };
+
+let runAbortController: AbortController | null = null;
 
 function findNode(nodes: FileNode[], id: string): FileNode | null {
   for (const node of nodes) {
@@ -351,6 +358,38 @@ export function getLanguageFromFilename(name: string): string {
 
 export function selectFileById(fileTree: FileNode[], id: string) {
   return findNode(fileTree, id);
+}
+
+function findFileByName(nodes: FileNode[], name: string): FileNode | null {
+  for (const node of nodes) {
+    if (node.type === "file" && node.name === name) return node;
+    if (node.children) {
+      const found = findFileByName(node.children, name);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function resolveRunnableFile(state: {
+  fileTree: FileNode[];
+  activeFileId: string | null;
+}): FileNode | null {
+  if (state.activeFileId) {
+    const active = findNode(state.fileTree, state.activeFileId);
+    if (active?.type === "file") {
+      const kind = languageFromFilename(active.name);
+      if (kind === "javascript" || kind === "python" || kind === "preview") {
+        return active;
+      }
+    }
+  }
+
+  return (
+    findFileByName(state.fileTree, "main.js") ||
+    findFileByName(state.fileTree, "app.py") ||
+    findFileByName(state.fileTree, "index.html")
+  );
 }
 
 export const useWorkspaceStore = create<WorkspaceState>()(
@@ -603,6 +642,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       terminalOutput: [...state.terminalOutput, line],
     })),
 
+  clearTerminal: () => set({ terminalOutput: [] }),
+
   sendAgentMessage: (content) => {
     const userMessage: AgentMessage = {
       id: nextId("agent"),
@@ -629,29 +670,128 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     })),
 
   runProject: () => {
+    const state = get();
+    if (state.isRunning) return;
+
+    const file = resolveRunnableFile(state);
+    if (!file || file.type !== "file") {
+      get().appendTerminalOutput(
+        "[runner] Open a .js, .py, or .html file to run",
+      );
+      get().appendConsoleLog("stderr", "No runnable file selected");
+      return;
+    }
+
+    const kind = languageFromFilename(file.name);
+
     set({
       isRunning: true,
-      activePane: "console",
-      activeBottomPane: "console",
+      activePane: "terminal",
+      activeBottomPane: "terminal",
       bottomPanelOpen: true,
       cpuUsage: 48,
       ramUsage: 61,
     });
-    get().appendTerminalOutput("$ npm run start");
-    get().appendTerminalOutput("> Starting development server…");
-    get().appendConsoleLog(
-      "stdout",
-      "Server listening on http://localhost:3000",
-    );
-    get().appendConsoleLog("info", "Preview refreshed");
-    set((state) => ({ previewKey: state.previewKey + 1 }));
-    setTimeout(() => {
-      set({ isRunning: false, cpuUsage: 18, ramUsage: 42 });
-      get().appendTerminalOutput("✓ Run completed");
-    }, 1600);
+
+    if (kind === "preview") {
+      get().appendTerminalOutput(`$ preview ${file.name}`);
+      get().appendTerminalOutput("Opening Webview preview…");
+      get().appendConsoleLog("info", `Previewing ${file.name}`);
+      set((current) => ({
+        previewKey: current.previewKey + 1,
+        activeRightPane: "preview",
+        isRunning: false,
+        cpuUsage: 14,
+        ramUsage: 32,
+      }));
+      get().appendTerminalOutput("✓ Preview refreshed");
+      return;
+    }
+
+    if (kind === "unsupported") {
+      get().appendTerminalOutput(
+        `[runner] Unsupported file type: ${file.name}`,
+      );
+      get().appendConsoleLog("stderr", `Unsupported file type: ${file.name}`);
+      set({ isRunning: false, cpuUsage: 8, ramUsage: 28 });
+      return;
+    }
+
+    runAbortController?.abort();
+    runAbortController = new AbortController();
+    const signal = runAbortController.signal;
+
+    get().appendTerminalOutput(`$ run ${file.name}`);
+    get().appendConsoleLog("info", `Executing ${file.name}`);
+
+    void streamExecute(
+      {
+        code: file.content ?? "",
+        language: kind,
+        filename: file.name,
+      },
+      {
+        signal,
+        onEvent: (event) => {
+          switch (event.type) {
+            case "start":
+              get().appendTerminalOutput(`> ${event.command}`);
+              break;
+            case "stdout":
+              get().appendTerminalOutput(event.data);
+              get().appendConsoleLog("stdout", event.data);
+              break;
+            case "stderr":
+              get().appendTerminalOutput(`\x1b[31m${event.data}\x1b[0m`);
+              get().appendConsoleLog("stderr", event.data);
+              break;
+            case "error":
+              get().appendTerminalOutput(
+                `\x1b[31m[runner] ${event.message}\x1b[0m`,
+              );
+              get().appendConsoleLog("stderr", event.message);
+              break;
+            case "exit": {
+              const status = event.timedOut
+                ? "timeout"
+                : event.signal
+                  ? `signal ${event.signal}`
+                  : `code ${event.code ?? 0}`;
+              get().appendTerminalOutput(
+                `✓ Process exited (${status}) in ${event.durationMs}ms`,
+              );
+              get().appendConsoleLog(
+                event.code === 0 && !event.timedOut ? "info" : "stderr",
+                `Process exited (${status})`,
+              );
+              break;
+            }
+            default:
+              break;
+          }
+        },
+      },
+    )
+      .catch((error: unknown) => {
+        if (signal.aborted) return;
+        const message =
+          error instanceof Error ? error.message : "Execution failed";
+        get().appendTerminalOutput(`\x1b[31m[runner] ${message}\x1b[0m`);
+        get().appendConsoleLog("stderr", message);
+      })
+      .finally(() => {
+        if (runAbortController?.signal === signal) {
+          runAbortController = null;
+        }
+        set({ isRunning: false, cpuUsage: 16, ramUsage: 36 });
+      });
   },
 
   stopProject: () => {
+    if (runAbortController) {
+      runAbortController.abort();
+      runAbortController = null;
+    }
     set({ isRunning: false, cpuUsage: 8, ramUsage: 28 });
     get().appendConsoleLog("stderr", "Process stopped by user");
     get().appendTerminalOutput("^C");
